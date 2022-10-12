@@ -42,3 +42,47 @@ return {
   isError: error,
 };
 ```
+
+## 옵션
+
+```js
+const { data, error, isValidating, mutate } = useSWR(key, fetcher, options);
+```
+
+기본적으로 위와 같은 상태이다.  
+반환값중에 isValidating(요청이나 갱신 로딩의 여부)는 사용해본적이 없어서 잘 모르겠음.  
+확실히 옵션에 넣을 수 있는 것들도 리액트 쿼리에 비해서 적다.  
+onSuccess나 onError는 존재함.
+
+## 데이터 가져오기
+
+fetcher는 swr의 key를 받고 데이터를 반환하는 비동기 함수.  
+기본적으로 **데이터 가져오기를 다루는 어떠한 라이브러리도 사용이 가능**하다.
+
+```js
+import fetch from "unfetch";
+
+const fetcher = (url) => fetch(url).then((r) => r.json());
+
+function App() {
+  const { data, error } = useSWR("/api/data", fetcher);
+  // ...
+}
+```
+
+Next.js를 사용한다면 폴리필을 사용할 필요가 없고 간편하게 사용가능하다.
+
+```js
+import axios from "axios";
+
+const fetcher = (url) => axios.get(url).then((res) => res.data);
+
+function App() {
+  const { data, error } = useSWR("/api/data", fetcher);
+  // ...
+}
+```
+
+axios도 간단히 사용가능하다.  
+하지만 둘 중에 누가 더 활용도가 높을까?  
+기본적으로 다중 인자를 넣어야 하는 상황이 오면 axios가 더 깔끔하게 처리가 가능하다고 생각한다. 리액트 쿼리에서처럼 params는 받아서 그대로 전달해줄 수 있으니까.
