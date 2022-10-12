@@ -1,34 +1,44 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# SWR 공식 문서 보고 따라하기
 
-## Getting Started
+## fetcher 함수
 
-First, run the development server:
-
-```bash
-npm run dev
-# or
-yarn dev
+```js
+const fetcher = (...args) => fetch(...args).then((res) => res.json());
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+기본적으로 fetcher함수가 필요하다. 타입스크립트로 따라할 시 경고를 받았는데,  
+앞에 args에는 **Rest parameter 'args' implicitly has an 'any[]' type**라는 경고를 받았고, 여기에 any[]라는 타입을 줘도 경고가 풀리지 않았다.  
+검색해보니 fetch는 적어도 한개의 인수가 필요한데 rest로 받아서 풀어버리니 인수를 안넣는 경우도 있을 수 있기때문에 에러가 발생하는 거라고 한다.  
+[스택오버플로우 참고](https://stackoverflow.com/questions/63313799/typescript-argument-cant-use-any-in-fetch)
 
-You can start editing the page by modifying `pages/index.tsx`. The page auto-updates as you edit the file.
+여기에서 수정하는 방법은 두가지 방법이 있다. 하나는 ars분리해서 하나 이상은 간다는 것을 전달해주는것.
 
-[API routes](https://nextjs.org/docs/api-routes/introduction) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.ts`.
+```ts
+const fetcher = (arg: any, ...args: any) =>
+  fetch(arg, ...args).then((res) => res.json());
+```
 
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/api-routes/introduction) instead of React pages.
+또 하나는 Parameters 기능을 활용하는것
 
-## Learn More
+```ts
+const fetcher = (...args: Parameters<typeof fetch>) =>
+  fetch(...args).then((res) => res.json());
+```
 
-To learn more about Next.js, take a look at the following resources:
+## 요청상태
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+리액트 쿼리와 다르게 isLoading이라는 상태를 제공하지 않는다.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+> 일반적으로, 세가지 요청 상태가 가능합니다. "loading", "ready", "error". data와 error값을 사용해 현재 요청의 상태를 알아내고, 해당하는 ui를 반환할 수 있습니다.
 
-## Deploy on Vercel
+즉 data, error를 받고 로딩은 (!data && !error)으로 만들어주면됨
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```js
+const { data, error } = useSWR(`/api/users/${id}`, fetcher);
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+return {
+  user: data,
+  isLoading: !error && !data,
+  isError: error,
+};
+```
