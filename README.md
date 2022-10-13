@@ -86,3 +86,149 @@ function App() {
 axios도 간단히 사용가능하다.  
 하지만 둘 중에 누가 더 활용도가 높을까?  
 기본적으로 다중 인자를 넣어야 하는 상황이 오면 axios가 더 깔끔하게 처리가 가능하다고 생각한다. 리액트 쿼리에서처럼 params는 받아서 그대로 전달해줄 수 있으니까.
+
+```ts
+const fetcher = (url: string, params: any) =>
+  axios
+    .get(url, {
+      params,
+    })
+    .then((res) => res.data);
+```
+
+그래서 위처럼 fetcher를 작성하면 키를 배열로만 전달하면 된다.
+
+### 옵션 전달
+
+만약 fetcher를 위와 같이 SWRConfig를 통해 전역적으로 사용하면 옵션은 어떻게 전달하면 될까?  
+각 자리에 fetcher자리에 옵션을 넣어주면 작동한다.
+
+```js
+const { data, error } = useSWR(
+  id ? [`http://localhost:4444/users/${id}`] : null,
+  { onSuccess: () => {} }
+);
+```
+
+위와 같은 형태다
+
+```ts
+export default function useUser(id: string | undefined) {
+  const { data, error } = useSWR(
+    id ? [`http://localhost:4444/users/${id}`] : null
+  );
+
+  return {
+    user: data,
+    isLoading: !error && !data,
+    isError: error,
+  };
+}
+```
+
+해당 훅은 params를 전달하진 않고, **[`http://localhost:4444/users/${id}`]**처럼 배열에 문자열만 전달했다.
+
+## 조건부 가져오기
+
+null을 사용하거나 함수를 key로 전달하여 데이터를 조건부로 가져올 수 있다. 함수가 falsy 값을 던지거나 반환하면 swr은 요청을 시작하지 않는다.
+
+```js
+// 조건부 가져오기
+const { data } = useSWR(shouldFetch ? "/api/data" : null, fetcher);
+
+// ...또는 falsy 값 반환
+const { data } = useSWR(() => (shouldFetch ? "/api/data" : null), fetcher);
+
+// 다중 인자일 경우는 아래처럼 처리가능하다
+
+const { data } = useSWR(shouldFetch ? ["/api/data", args] : null, fetcher);
+
+// ...또는 user.id가 정의되지 않았을 때 에러 throw
+const { data } = useSWR(() => "/api/data?uid=" + user.id, fetcher);
+```
+
+## 의존
+
+swr도 다른 데이터에 의존하는 데이터를 가져올 수 있다.
+
+```js
+function MyProjects() {
+  const { data: user } = useSWR("/api/user");
+  const { data: projects } = useSWR(() => "/api/projects?uid=" + user.id);
+  // 함수를 전달할 때, SWR은 반환 값을 `key`로 사용합니다.
+  // 함수가 falsy를 던지거나 반환한다면,
+  // SWR은 일부 의존성이 준비되지 않은 것을 알게 됩니다.
+  // 이 예시의 경우 `user.id`는 `user`가 로드되지 않았을 때
+  // 에러를 던집니다.
+  // ----> 이 부분이 이해가 되지 않음. 에러를 던지면 error에 담겼다가 데이터가 들어왔을 때 생기는 것인가?
+
+  if (!projects) return "loading...";
+  return "You have " + projects.length + " projects";
+}
+```
+
+아직 함수 형태가 익숙하지는 않아서 아래처럼 훅을 만들어봄
+
+```ts
+export default function useUsers({ gender, size }: Users) {
+  const { data, error } = useSWR(
+    gender && size ? ["http://localhost:4444/users", { gender, size }] : null
+  );
+  return {
+    users: data,
+    isLoading: !error && !data,
+    isError: error,
+  };
+}
+```
+
+의존 데이터가 undefined일 때는 null을 넣어줘서 의존 형태로 구성했고 잘 작동함.
+
+## 전역 에러 처리
+
+컴포넌트 내에서 반응적으로 error객체를 얻을 수 있지만 토스트, 스낵바나 centry 같이 어딘가에 기록하기 위해 에러를 전역으로 처리해야 할 경우 SWRConfig에 onError를 사용하면 된다.
+
+```js
+<SWRConfig
+  value={{
+    onError: (error, key) => {
+      if (error.status !== 403 && error.status !== 404) {
+        // Sentry로 에러를 보내거나,
+        // 알림 UI를 보여줄 수 있습니다.
+      }
+    },
+  }}
+>
+  <MyApp />
+</SWRConfig>
+```
+
+## 페이지네이션
+
+```js
+const [pageIndex, setPageIndex] = useState(1);
+const { data, error } = useSWR([
+  "http://localhost:4444/users",
+  { _page: pageIndex, _limit: 10 },
+]);
+// 페이지와 거기에 맞게 key를 수정한다.
+
+<div>
+  <button
+    disabled={pageIndex === 1}
+    onClick={() => setPageIndex(pageIndex - 1)}
+  >
+    이전
+  </button>
+  <span>-{pageIndex}-</span>
+  <button
+    disabled={pageIndex === 10}
+    onClick={() => setPageIndex(pageIndex + 1)}
+  >
+    다음
+  </button>
+</div>;
+// 버튼에 setPageIndex를 줘서 state가 바뀌도록 해주면 페이지네이션 처리가 된다.
+```
+
+state가 바뀌면 거기에 맞게 swr을 새롭게 요청해서 페이징처리가 된다.
